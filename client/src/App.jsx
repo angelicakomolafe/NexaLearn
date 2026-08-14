@@ -64,6 +64,10 @@ const quizQuestion = {
 
 function App() {
 
+  const [email, setEmail] = useState('')
+const [password, setPassword] = useState('')
+const [loginError, setLoginError] = useState('')
+
   const [loggedIn, setLoggedIn] = useState(false)
 
   const [page, setPage] = useState('dashboard')
@@ -72,25 +76,133 @@ function App() {
 
   const [score, setScore] = useState(null)
 
-  function submitQuiz() {
+  const [results, setResults] = useState([])
 
-    if (!selectedAnswer) {
+  const cyberResult = results.find(
+ (result) => result.course === 'Introduction to Cyber Security'
+)
 
-      alert('Please select an answer before submitting.')
+  async function loadResults() {
+
+  try {
+
+    useEffect(() => {
+ if (page === 'progress' && loggedIn) {
+   loadResults()
+ }
+}, [page, loggedIn])
+
+    const token = localStorage.getItem('token')
+
+    const response = await fetch(
+
+      'https://friendly-potato-q7rqwqgp74w724jqj-5000.app.github.dev/api/results',
+
+      {
+
+        headers: {
+
+          Authorization: `Bearer ${token}`,
+
+        },
+
+      }
+
+    )
+
+    const data = await response.json()
+
+    if (response.ok) {
+
+      setResults(data)
+
+    }
+
+  } catch (error) {
+
+    console.error('Could not load results:', error)
+
+  }
+
+}
+
+  async function handleLogin() {
+
+  try {
+
+    setLoginError('')
+
+    const response = await fetch('https://friendly-potato-q7rqwqgp74w724jqj-5000.app.github.dev/api/auth/login', {
+
+      method: 'POST',
+
+      headers: {
+
+        'Content-Type': 'application/json',
+
+      },
+
+      body: JSON.stringify({
+
+        email,
+
+        password,
+
+      }),
+
+    })
+
+    const data = await response.json()
+
+    if (!response.ok) {
+
+      setLoginError(data.message || 'Login failed')
 
       return
 
     }
 
-    const result =
+    localStorage.setItem('token', data.token)
 
-      selectedAnswer === quizQuestion.correctAnswer ? 100 : 0
+    localStorage.setItem('user', JSON.stringify(data.user))
 
-    setScore(result)
+    setLoggedIn(true)
 
-    setPage('results')
+  } catch {
+
+    setLoginError('Unable to connect to the server')
 
   }
+
+}
+ 
+
+  async function submitQuiz() {
+ if (!selectedAnswer) {
+   alert('Please select an answer before submitting.')
+   return
+ }
+ const result =
+   selectedAnswer === quizQuestion.correctAnswer ? 100 : 0
+ setScore(result)
+ try {
+   const token = localStorage.getItem('token')
+   await fetch('https://friendly-potato-q7rqwqgp74w724jqj-5000.app.github.dev/api/results', {
+     method: 'POST',
+     headers: {
+       'Content-Type': 'application/json',
+       Authorization: `Bearer ${token}`,
+     },
+     body: JSON.stringify({
+       course: 'Introduction to Cyber Security',
+       score: result,
+     }),
+   })
+ } catch (error) {
+   console.error('Could not save result:', error)
+ }
+ setPage('results')
+}
 
   if (!loggedIn) {
 
@@ -102,10 +214,21 @@ function App() {
 <h2>Welcome back</h2>
 <p className="subtitle">Sign in to continue your learning</p>
 <label>Email address</label>
-<input type="email" placeholder="name@example.com" />
+<input
+ type="email"
+ placeholder="name@example.com"
+ value={email}
+ onChange={(e) => setEmail(e.target.value)}
+/>
 <label>Password</label>
-<input type="password" placeholder="••••••••" />
-<button onClick={() => setLoggedIn(true)}>Sign In</button>
+<input
+ type="password"
+ placeholder="••••••••"
+ value={password}
+ onChange={(e) => setPassword(e.target.value)}
+/>
+<button onClick={handleLogin}>Sign In</button>
+ {loginError && <p className="login-error">{loginError}</p>}
 <p className="signup">
 
             Don’t have an account? <span>Create account</span>
@@ -145,7 +268,10 @@ function App() {
 
             className={page === 'progress' ? 'nav-active' : ''}
 
-            onClick={() => setPage('progress')}
+            onClick={() => {
+ loadResults()
+ setPage('progress')
+}}
 >
 
             Progress
@@ -290,8 +416,9 @@ function App() {
 <p>Cyber Security Assessment</p>
 <div className="result-card">
 <strong className="result-score">{score}%</strong>
-<h2 className="passed">Passed</h2>
-<p>
+<h2 className={score >= 60 ? 'passed' : 'failed'}>
+ {score >= 60 ? 'Passed' : 'Failed'}
+</h2><p>
 
   {score === 100
 
@@ -328,8 +455,9 @@ function App() {
 <strong className="overall-progress">67%</strong>
 <div className="progress-row">
 <span>Introduction to Cyber Security</span>
-<span>Completed — 80%</span>
-</div>
+{cyberResult
+ ? `Completed — ${cyberResult.score}%`
+ : 'Not Completed —'}</div>
 <div className="progress-row">
 <span>Data Protection Essentials</span>
 <span>Completed — 85%</span>
